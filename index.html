@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>PT. AMBANI ARGO NGAWI - Sistem Optimasi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* ===== ANIMASI SINKRONISASI ===== */
+        .highlight-swap { animation: highlightSmooth .6s; }
+        @keyframes highlightSmooth {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); background-color: #dcfce7; }
+            100% { transform: scale(1); }
+        }
+
+        #toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #3b82f6;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.6s;
+            font-weight: bold;
+            z-index: 100;
+        }
+
+        .item-hover:hover { transform: scale(1.01); transition: 0.3s; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen font-sans">
+
+    <div id="login-section" class="flex items-center justify-center min-h-screen">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-96 border-t-4 border-blue-500">
+            <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">Login Sistem Produksi</h2>
+            <input type="text" id="username" placeholder="Username" class="w-full p-2 mb-4 border rounded focus:ring-2 focus:ring-blue-400 outline-none">
+            <input type="password" id="password" placeholder="Password" class="w-full p-2 mb-6 border rounded focus:ring-2 focus:ring-blue-400 outline-none">
+            <button onclick="handleLogin()" class="w-full bg-blue-600 text-white p-2 rounded font-bold hover:bg-blue-700 transition">Masuk</button>
+            <p id="login-error" class="text-red-500 text-sm mt-3 text-center hidden">Username atau password salah!</p>
+        </div>
+    </div>
+
+    <div id="toast">Proses Optimasi...</div>
+
+    <div id="dashboard" class="hidden p-6 max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-8 bg-white p-6 rounded-lg shadow-sm border-l-4 border-blue-500">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">Sistem Optimasi Produksi</h1>
+                <p class="text-gray-500 text-sm">PT. AMBANI ARGO NGAWI</p>
+            </div>
+            <button onclick="location.reload()" class="bg-red-50 text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-100 transition">Logout</button>
+        </div>
+
+        <div class="mb-8 text-center">
+            <button onclick="runFullOptimization()" class="bg-green-600 text-white px-10 py-4 rounded-full font-bold shadow-lg hover:bg-green-700 hover:scale-105 transition transform">
+                🚀 Jalankan Algoritma Simulated Annealing
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-gray-700">
+                    <span class="w-2 h-6 bg-gray-400 rounded-full"></span> Jadwal Produksi Awal
+                </h3>
+                <div id="initial-list" class="space-y-3">
+                    <p class="text-gray-400 italic">Memuat data...</p>
+                </div>
+            </div>
+
+            <div class="space-y-8">
+                <div class="bg-white p-6 rounded-xl shadow-md border-2 border-green-400">
+                    <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-green-700">
+                        <span class="w-2 h-6 bg-green-500 rounded-full"></span> Hasil Urutan Terbaik
+                    </h3>
+                    <div id="optimized-list" class="space-y-3 min-h-[200px]">
+                        <p class="text-gray-400 italic py-10 text-center">Klik tombol di atas untuk optimasi</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h3 class="text-lg font-bold mb-4 text-gray-700 italic">Grafik Efisiensi Waktu</h3>
+                    <canvas id="chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
+            <div class="md:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="font-bold mb-4 text-gray-700 border-b pb-2">Log Iterasi Algoritma</h3>
+                <div id="logs" class="text-xs font-mono custom-scrollbar max-h-64 overflow-y-auto space-y-1 bg-gray-50 p-4 rounded border">
+                    <span class="text-gray-400">Belum ada aktivitas...</span>
+                </div>
+            </div>
+
+            <div class="bg-blue-900 text-white p-6 rounded-xl shadow-lg border border-blue-800">
+                <h3 class="font-bold mb-4 border-b border-blue-700 pb-2">Rumus Matematika (SA)</h3>
+                <div id="formula" class="text-sm space-y-3 opacity-90">
+                    <p class="italic text-blue-200">Menghubungkan ke server untuk memuat rumus...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = 'http://127.0.0.1:5000';
+        let currentOrder = [];
+        let chart;
+
+        function showToast(message, duration = 1500){
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.opacity = 1;
+            setTimeout(() => { toast.style.opacity = 0; }, duration);
+        }
+
+        async function handleLogin() {
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+            const errorLabel = document.getElementById('login-error');
+
+            try {
+                const res = await fetch(`${API}/login`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: user, password: pass})
+                });
+
+                if(res.ok){
+                    document.getElementById('login-section').classList.add('hidden');
+                    document.getElementById('dashboard').classList.remove('hidden');
+                    loadInitialData();
+                    loadFormula();
+                    initChart();
+                    showToast("Login Berhasil!");
+                } else {
+                    errorLabel.classList.remove('hidden');
+                }
+            } catch (e) {
+                alert("Server backend tidak aktif! Pastikan SA.py sedang berjalan.");
+            }
+        }
+
+        async function loadInitialData() {
+            const res = await fetch(`${API}/initial-data`);
+            const data = await res.json();
+            currentOrder = [...data.original];
+            // Sinkronisasi: Pastikan backend mengirim 'total_minutes' atau sesuaikan di sini
+            const cost = data.total_minutes || data.total_hours; 
+            renderList('initial-list', data.original, cost, 'bg-gray-50');
+        }
+
+        async function loadFormula() {
+            const res = await fetch(`${API}/formula`);
+            const f = await res.json();
+            document.getElementById('formula').innerHTML = `
+                <div><span class="text-blue-300 font-bold">Cost:</span><br>${f.cost}</div>
+                <div><span class="text-blue-300 font-bold">ΔE:</span><br>${f.delta}</div>
+                <div><span class="text-blue-300 font-bold">Probabilitas:</span><br>${f.probability}</div>
+                <div><span class="text-blue-300 font-bold">Keputusan:</span><br>${f.decision.map(d => "• " + d).join("<br>")}</div>
+            `;
+        }
+
+        async function runFullOptimization() {
+            showToast("Memulai Algoritma...");
+            const res = await fetch(`${API}/optimize`);
+            const data = await res.json();
+            
+            // Tampilkan animasi swap visual sebelum hasil akhir
+            animateResults(data);
+        }
+
+        function animateResults(data) {
+            let step = 0;
+            const targetOrder = data.optimized;
+            const logs = data.logs;
+            const cost = data.total_minutes || data.total_hours;
+
+            chart.data.labels = [];
+            chart.data.datasets[0].data = [];
+            document.getElementById('logs').innerHTML = '';
+
+            const interval = setInterval(() => {
+                if(step < 5) { // Efek animasi acak sebentar
+                    const shuffle = [...targetOrder].sort(() => Math.random() - 0.5);
+                    renderList('optimized-list', shuffle, '???', 'bg-green-50 border-green-200', [0, 1]);
+                } else {
+                    clearInterval(interval);
+                    renderList('optimized-list', targetOrder, cost, 'bg-green-50 border-green-200');
+                    renderLogs(logs);
+                    updateChart(logs);
+                    showToast("Optimasi Selesai!", 2000);
+                }
+                step++;
+            }, 300);
+        }
+
+        function renderList(elementId, items, total, bgColor, highlight=[]) {
+            const container = document.getElementById(elementId);
+            const listHtml = items.map((item, index) => `
+                <div class="p-3 ${bgColor} border rounded-lg flex justify-between items-center item-hover ${highlight.includes(index)?'highlight-swap':''}">
+                    <div class="flex items-center gap-3">
+                        <span class="bg-blue-600 text-white w-6 h-6 rounded-full text-center text-xs flex items-center justify-center font-bold shadow-sm">
+                            ${index+1}
+                        </span>
+                        <span class="font-medium text-gray-700">${item.task}</span>
+                    </div>
+                    <span class="text-sm font-bold text-blue-600">${item.duration} Menit</span>
+                </div>
+            `).join('');
+            
+            container.innerHTML = listHtml + `
+                <div class="mt-4 p-3 bg-blue-50 border-t-2 border-blue-400 rounded text-right">
+                    <span class="text-gray-600">Total Durasi:</span>
+                    <span class="text-xl font-black text-blue-700 ml-2">${total} Menit</span>
+                </div>
+            `;
+        }
+
+        function renderLogs(logs) {
+            const logsDiv = document.getElementById('logs');
+            logsDiv.innerHTML = logs.map(l => `
+                <div class="border-b border-gray-100 py-1 hover:bg-white transition">
+                    <span class="text-blue-600 font-bold">Iter ${l.iterasi}</span> | 
+                    T: <span class="text-orange-600">${l.temperature}</span> | 
+                    ΔE: <span class="${l.delta_E <= 0 ? 'text-green-600' : 'text-red-500'}">${l.delta_E}</span> | 
+                    Cost: <span class="font-bold">${l.cost} mnt</span> | 
+                    <span class="italic text-gray-400">Acc: ${l.accepted}</span>
+                </div>
+            `).join('');
+        }
+
+        function updateChart(logs) {
+            chart.data.labels = logs.map(l => l.iterasi);
+            chart.data.datasets[0].data = logs.map(l => l.cost);
+            chart.update();
+        }
+
+        function initChart(){
+            const ctx = document.getElementById('chart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Durasi Produksi (Menit)',
+                        data: [],
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        pointRadius: 1,
+                        tension: 0.2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { 
+                            beginAtZero: false,
+                            title: { display: true, text: 'Menit' }
+                        },
+                        x: { title: { display: true, text: 'Iterasi' } }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
